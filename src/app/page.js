@@ -1,103 +1,172 @@
-import Image from "next/image";
+"use client"; // Add this for Next.js 13+
+
+import React from "react";
+import { useState, useEffect } from "react";
+import SiteForm from "./components/SiteForm";
+import WorkerForm from "./components/WorkerForm";
+import AttendanceSheet from "./components/AttendanceSheet";
+import SiteList from "./components/SiteList";
+// Import your CSS here if using a separate file
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  // Copy the state and functions from the App component I provided
+  const [sites, setSites] = useState([]);
+  const [currentSite, setCurrentSite] = useState(null);
+  const [view, setView] = useState("sites");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Add useEffect hooks for loading/saving data
+  useEffect(() => {
+    const savedSites = localStorage.getItem("constructionSites");
+    if (savedSites) {
+      setSites(JSON.parse(savedSites));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("constructionSites", JSON.stringify(sites));
+  }, [sites]);
+
+  const addSite = (site) => {
+    const newSite = {
+      ...site,
+      id: Date.now().toString(),
+      workers: [],
+    };
+    setSites([...sites, newSite]);
+  };
+
+  const selectSite = (siteId) => {
+    const site = sites.find((s) => s.id === siteId);
+    setCurrentSite(site);
+    setView("workers");
+  };
+
+  const addWorker = (worker) => {
+    if (!currentSite) return;
+
+    const workerWithId = {
+      ...worker,
+      id: Date.now().toString(),
+      attendance: {},
+    };
+
+    const updatedSites = sites.map((site) => {
+      if (site.id === currentSite.id) {
+        return {
+          ...site,
+          workers: [...site.workers, workerWithId],
+        };
+      }
+      return site;
+    });
+
+    setSites(updatedSites);
+    setCurrentSite({
+      ...currentSite,
+      workers: [...currentSite.workers, workerWithId],
+    });
+  };
+
+  const updateAttendance = (workerId, date, status) => {
+    if (!currentSite) return;
+
+    const updatedSites = sites.map((site) => {
+      if (site.id === currentSite.id) {
+        const updatedWorkers = site.workers.map((worker) => {
+          if (worker.id === workerId) {
+            return {
+              ...worker,
+              attendance: {
+                ...worker.attendance,
+                [date]: status,
+              },
+            };
+          }
+          return worker;
+        });
+
+        return {
+          ...site,
+          workers: updatedWorkers,
+        };
+      }
+      return site;
+    });
+
+    setSites(updatedSites);
+
+    // Update current site as well
+    const updatedCurrentSite = updatedSites.find(
+      (s) => s.id === currentSite.id
+    );
+    setCurrentSite(updatedCurrentSite);
+  };
+
+  const goBack = () => {
+    if (view === "workers" || view === "attendance") {
+      setView("sites");
+      setCurrentSite(null);
+    } else if (view === "attendance") {
+      setView("workers");
+    }
+  };
+
+  // Return the JSX from the App component I provided
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Construction Site Attendance Management</h1>
+      </header>
+      <div className="container">
+        {view === "sites" && (
+          <>
+            <SiteForm addSite={addSite} />
+            <SiteList sites={sites} selectSite={selectSite} />
+          </>
+        )}
+
+        {view === "workers" && currentSite && (
+          <>
+            <button onClick={goBack} className="back-btn">
+              Back to Sites
+            </button>
+            <h2>
+              Site: {currentSite.name} ({currentSite.details})
+            </h2>
+            <WorkerForm addWorker={addWorker} />
+            <button
+              onClick={() => setView("attendance")}
+              className="view-attendance-btn"
+              disabled={currentSite.workers.length === 0}
+            >
+              View Attendance Sheet
+            </button>
+            <div className="workers-list">
+              <h3>Workers ({currentSite.workers.length})</h3>
+              <ul>
+                {currentSite.workers.map((worker) => (
+                  <li key={worker.id}>
+                    {worker.name} - {worker.role}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+
+        {view === "attendance" && currentSite && (
+          <>
+            <button onClick={() => setView("workers")} className="back-btn">
+              Back to Workers
+            </button>
+            <h2>Attendance: {currentSite.name}</h2>
+            <AttendanceSheet
+              site={currentSite}
+              updateAttendance={updateAttendance}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          </>
+        )}
+      </div>
     </div>
   );
 }
